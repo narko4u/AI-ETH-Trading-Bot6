@@ -1,0 +1,45 @@
+import os
+import time
+import numpy as np
+import pandas as pd
+import ta
+import ccxt
+from sklearn.neighbors import KNeighborsClassifier
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Dropout
+
+# 🔐 Load Binance API keys from Railway environment variables
+binance = ccxt.binance({
+    'apiKey': os.getenv('BINANCE_API_KEY'),
+    'secret': os.getenv('BINANCE_SECRET_KEY'),
+    'options': {'defaultType': 'future'}  # Enable Futures Trading
+})
+
+# 📌 Trading Configuration
+symbol = 'ETH/USDT'   # ✅ Trading Ethereum
+timeframe = '15m'      # ✅ 15-minute timeframe
+leverage = 5           # ✅ Set leverage (adjustable)
+trade_size = 0.05      # ✅ Position size (ETH)
+risk_factor = 2        # ✅ ATR multiplier for stop-loss/take-profit
+
+# 🔥 Fetch Historical Data
+def fetch_data(symbol, timeframe='15m', limit=500):
+    ohlcv = binance.fetch_ohlcv(symbol, timeframe, limit=limit)
+    df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    return df
+
+# 📊 Add Technical Indicators
+def add_indicators(df):
+    df['EMA_50'] = ta.trend.ema_indicator(df['close'], window=50)
+    df['EMA_200'] = ta.trend.ema_indicator(df['close'], window=200)
+    df['MACD'] = ta.trend.macd(df['close'])
+    df['RSI'] = ta.momentum.rsi(df['close'], window=14)
+    df['ATR'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
+    df.dropna(inplace=True)
+    return df
+
+# 🤖 kNN Pattern Recognition
+def train_knn(df):
+    df['Target'] = np.where(df['close'].shift(-1) > df['close'], 1, 0)
+    features = ['close', 'EMA_50', 'EMA_200', 'MACD', 'RSI', 'ATR
